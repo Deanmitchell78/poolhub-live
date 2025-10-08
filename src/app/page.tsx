@@ -1,5 +1,4 @@
-import Image from "
-  );export default function Home() {
+export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center text-center p-8">
       <h1 className="text-4xl font-bold mb-4">Welcome to PoolHub.Live 🎱</h1>
@@ -14,6 +13,4 @@ import Image from "
       </nav>
     </main>
   );
-}
-
 }
