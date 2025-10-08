@@ -1,4 +1,6 @@
+
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,14 +12,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen bg-white text-black">
-       {/* header nav added */}
-         <header className="border-b">
+        <header className="border-b">
           <div className="mx-auto max-w-5xl p-4 flex items-center justify-between">
-            <a href="/" className="font-bold text-xl">PoolHub.Live</a>
+            <Link href="/" className="font-bold text-xl">PoolHub.Live</Link>
             <nav className="flex gap-4 text-sm">
-              <a href="/feed">Feed</a>
-              <a href="/live">Live</a>
-              <a href="/events">Events</a>
+              <Link href="/feed">Feed</Link>
+              <Link href="/live">Live</Link>
+              <Link href="/events">Events</Link>
             </nav>
           </div>
         </header>
