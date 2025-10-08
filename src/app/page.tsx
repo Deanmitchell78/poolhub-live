@@ -3,7 +3,8 @@ export default function Home() {
     <main className="min-h-screen flex flex-col items-center justify-center text-center p-8">
       <h1 className="text-4xl font-bold mb-4">Welcome to PoolHub.Live 🎱</h1>
       <p className="text-gray-600 mb-6">
-        Profiles, live streams, and events for pool players.
+        Profiles, streams & events — fast.
+
       </p>
 
       <nav className="flex gap-4">
