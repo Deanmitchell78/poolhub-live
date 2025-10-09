@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
 function fmt(dt: Date) {
@@ -27,7 +28,12 @@ export default async function EventsPage() {
 
   return (
     <main className="min-h-screen p-8 space-y-6">
-      <h1 className="text-3xl font-bold">Events</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Events</h1>
+        <Link href="/events/new" className="px-3 py-2 border rounded text-sm">
+          + Create Event
+        </Link>
+      </div>
 
       {events.length === 0 ? (
         <p className="text-gray-600">No upcoming events yet. Check back soon.</p>
@@ -48,10 +54,6 @@ export default async function EventsPage() {
           ))}
         </ul>
       )}
-
-      <p className="text-sm text-gray-500">
-        (We’ll add “Create Event” next.)
-      </p>
     </main>
   );
 }
