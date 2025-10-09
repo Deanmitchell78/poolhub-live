@@ -9,9 +9,16 @@ function toISOWithLocalOffset(value: string): string {
   if (Number.isNaN(d.getTime())) {
     throw new Error("Please pick a valid date/time.");
   }
-  // datetime-local gives local clock time with no zone; adjust by local offset to get correct UTC.
   const utcMs = d.getTime() - d.getTimezoneOffset() * 60000;
   return new Date(utcMs).toISOString();
+}
+
+function extractApiError(x: unknown): string | null {
+  if (typeof x === "object" && x !== null && "error" in x) {
+    const err = (x as Record<string, unknown>).error;
+    if (typeof err === "string") return err;
+  }
+  return null;
 }
 
 export default function EventForm() {
@@ -48,7 +55,10 @@ export default function EventForm() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as any)?.error || `HTTP ${res.status}`);
+      if (!res.ok) {
+        const msg = extractApiError(data) ?? `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
 
       setSaved("Event created ✔");
       router.push("/events");
