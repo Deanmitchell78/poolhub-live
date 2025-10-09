@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 type FormState = {
+  handle: string;
   apa: string;
   fargo: string;
   napa: string;
@@ -15,6 +16,7 @@ type FormState = {
 };
 
 const EMPTY: FormState = {
+  handle: '',
   apa: '',
   fargo: '',
   napa: '',
@@ -40,20 +42,22 @@ export default function SettingsForm() {
         const res = await fetch('/api/profile', { method: 'GET' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const p = (data?.profile ?? {}) as Partial<FormState & { apa: number|null; fargo: number|null; napa: number|null }>;
+        const p = data?.profile ?? {};
+        const u = data?.user ?? {};
         const next: FormState = {
-          apa: p.apa != null ? String(p.apa) : '',
-          fargo: p.fargo != null ? String(p.fargo) : '',
-          napa: p.napa != null ? String(p.napa) : '',
-          cue: p.cue ?? '',
-          location: p.location ?? '',
-          poolroomAlias: p.poolroomAlias ?? '',
-          cashapp: p.cashapp ?? '',
-          venmo: p.venmo ?? '',
-          bio: p.bio ?? '',
+          handle: (u?.handle as string | null) ?? '',
+          apa: p?.apa != null ? String(p.apa) : '',
+          fargo: p?.fargo != null ? String(p.fargo) : '',
+          napa: p?.napa != null ? String(p.napa) : '',
+          cue: p?.cue ?? '',
+          location: p?.location ?? '',
+          poolroomAlias: p?.poolroomAlias ?? '',
+          cashapp: p?.cashapp ?? '',
+          venmo: p?.venmo ?? '',
+          bio: p?.bio ?? '',
         };
         if (mounted) setState(next);
-      } catch (e) {
+      } catch {
         if (mounted) setError('Could not load your profile. Please refresh.');
       } finally {
         if (mounted) setLoading(false);
@@ -73,19 +77,18 @@ export default function SettingsForm() {
     setSaved('');
     setError('');
     try {
-      const body = {
-        ...state,
-        // keep numbers as strings in inputs; server will coerce to Int
-      };
       const res = await fetch('/api/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(state),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `HTTP ${res.status}`);
+      }
       setSaved('Saved ✔');
-    } catch (e) {
-      setError('Save failed. Please try again.');
+    } catch (e: any) {
+      setError(e?.message || 'Save failed. Please try again.');
     }
   }
 
@@ -96,6 +99,21 @@ export default function SettingsForm() {
       {error ? <div className="text-red-600 text-sm">{error}</div> : null}
       {saved ? <div className="text-green-700 text-sm">{saved}</div> : null}
 
+      {/* Handle */}
+      <label className="block">
+        <div className="text-sm font-medium mb-1">Handle</div>
+        <input
+          value={state.handle}
+          onChange={(e) => onChange('handle', e.target.value.toLowerCase())}
+          className="w-full rounded border px-3 py-2"
+          placeholder="e.g., dean"
+        />
+        <div className="text-xs text-gray-500 mt-1">
+          3–20 chars: a–z, 0–9, dot (.), underscore (_), hyphen (-). Your profile URL becomes /profile/yourhandle
+        </div>
+      </label>
+
+      {/* Ratings row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <label className="block">
           <div className="text-sm font-medium mb-1">APA</div>
