@@ -1,0 +1,64 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+/**
+ * Minimal v1 so we can migrate now.
+ * We'll add Venues/Events/Subscriptions in later migrations.
+ */
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  handle    String?  @unique
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+
+  profile   Profile?
+  events   Event[]
+
+}
+
+model Profile {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id])
+  apa           Int?
+  fargo         Int?
+  napa          Int?
+  poolroomAlias String?
+  cue           String?
+  location      String?
+  cashapp       String?
+  venmo         String?
+  bio           String?
+  views         Int     @default(0)
+  updatedAt     DateTime @updatedAt
+}
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  startsAt    DateTime
+  endsAt      DateTime?
+  city        String?
+  state       String?
+  description String?
+
+  // who created it
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  createdAt   DateTime @default(now())
+}
