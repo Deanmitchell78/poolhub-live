@@ -87,9 +87,11 @@ export default function SettingsForm() {
         throw new Error(j?.error || `HTTP ${res.status}`);
       }
       setSaved('Saved ✔');
-    } catch (e: any) {
-      setError(e?.message || 'Save failed. Please try again.');
-    }
+    } catch (e: unknown) {
+  const msg = e instanceof Error ? e.message : 'Save failed. Please try again.';
+  setError(msg);
+}
+
   }
 
   if (loading) return <p className="text-gray-600">Loading…</p>;
