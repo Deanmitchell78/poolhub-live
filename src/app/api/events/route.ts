@@ -61,3 +61,16 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, id: event.id });
 }
+export async function GET() {
+  try {
+    const events = await prisma.event.findMany({
+      orderBy: { startsAt: "desc" },
+      take: 10,
+      select: { id: true, title: true, startsAt: true, city: true, state: true },
+    });
+    return NextResponse.json({ ok: true, events });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
+}
