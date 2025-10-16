@@ -6,38 +6,41 @@ export default function HlsPlayer({ src, poster }: { src: string; poster?: strin
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let hls: any;
+    // Type hls correctly instead of `any`
+    let hls: (await import("hls.js")).default | null = null;
     setError(null);
 
     const setup = async () => {
       const video = videoRef.current;
       if (!video || !src) return;
 
-      // Safari/iOS can play HLS natively
+      // Safari/iOS native HLS
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         await video.play().catch(() => {});
         return;
       }
 
-      // Other browsers: use hls.js
       const Hls = (await import("hls.js")).default;
       if (Hls.isSupported()) {
         hls = new Hls({ enableWorker: true });
         hls.loadSource(src);
         hls.attachMedia(video);
-        hls.on(Hls.Events.ERROR, (_evt, data) => {
-          if (data.fatal) setError("Stream error — is the HLS URL correct and live?");
+        hls.on(Hls.Events.ERROR, (_evt, data: unknown) => {
+          // Narrow type just enough for fatal flag
+          const d = data as { fatal?: boolean } | undefined;
+          if (d?.fatal) setError("Stream error — is the HLS URL correct and live?");
         });
       } else {
         setError("Your browser doesn’t support HLS playback.");
       }
     };
 
-    setup();
+    void setup();
+
     return () => {
-      if (hls) try { hls.destroy(); } catch {}
-      const v = videoRef.current;
+      const v = videoRef.current; // copy ref into local var for cleanup
+      if (hls) { try { hls.destroy(); } catch {} }
       if (v) { v.pause(); v.removeAttribute("src"); v.load(); }
     };
   }, [src]);

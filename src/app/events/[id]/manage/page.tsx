@@ -1,4 +1,4 @@
-import CopyField from "@/components/CopyField"; // we'll keep this only for the Larix one-field helper
+import CopyField from "@/components/CopyField"; // keep for Larix helper
 import { upsertStream, getStreamByEvent } from "../../streams";
 
 const CF_ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID!;
@@ -7,42 +7,95 @@ const CF_API = CF_ACCOUNT
   ? `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT}/stream/live_inputs`
   : null;
 
-export default async function ManageStream({ params }: { params: { id: string } }) {
-  const stream = await getStreamByEvent(params.id);
+// ---- Types (to avoid `any`) ----
+const STATUSES = ["idle", "live", "ended", "error"] as const;
+type Status = (typeof STATUSES)[number];
 
-  async function save(formData: FormData) {
+type StreamRecord = {
+  title: string | null;
+  playback_url: string | null;
+  rtmp_url: string | null;
+  stream_key: string | null;
+  status: Status | null;
+};
+
+type UpsertInput = {
+  eventId: string;
+  title?: string;
+  playbackUrl?: string;
+  rtmpUrl?: string;
+  streamKey?: string;
+  status?: Status;
+};
+
+type CFResp = {
+  result?: {
+    playback?: { hls?: string | null } | null;
+    webRtc?: { playback?: { hls?: string | null } | null } | null;
+    rtmp?: { url?: string | null; streamKey?: string | null } | null;
+  };
+  errors?: Array<{ message?: string }>;
+};
+
+export const dynamic = "force-dynamic";
+
+export default async function ManageStream(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params; // Next 15: await params
+  const stream = (await getStreamByEvent(id)) as (StreamRecord & { title: string | null }) | null;
+
+  async function save(formData: FormData): Promise<void> {
     "use server";
-    await upsertStream({
-      eventId: params.id,
+    const statusRaw = String(formData.get("status") ?? "idle");
+    const status: Status = (STATUSES as readonly string[]).includes(statusRaw)
+      ? (statusRaw as Status)
+      : "idle";
+
+    const payload: UpsertInput = {
+      eventId: id,
       title: stream?.title ?? "PoolHub Stream",
       playbackUrl: String(formData.get("playbackUrl") ?? "").trim() || undefined,
       rtmpUrl: String(formData.get("rtmpUrl") ?? "").trim() || undefined,
       streamKey: String(formData.get("streamKey") ?? "").trim() || undefined,
-      status: (String(formData.get("status") ?? "idle") as any),
-    });
+      status,
+    };
+
+    await upsertStream(payload);
   }
 
-  async function createIngestAction() {
+  async function createIngestAction(): Promise<void> {
     "use server";
     if (!CF_API || !CF_TOKEN) {
-      throw new Error("Cloudflare env vars missing. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env.local, then restart Next.");
+      throw new Error(
+        "Cloudflare env vars missing. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env / Vercel, then redeploy."
+      );
     }
+
     const resp = await fetch(CF_API, {
       method: "POST",
       headers: { Authorization: `Bearer ${CF_TOKEN}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ meta: { name: `poolhub-${params.id}` }, recording: { mode: "automatic" } }),
+      body: JSON.stringify({
+        meta: { name: `poolhub-${id}` },
+        recording: { mode: "automatic" },
+      }),
       cache: "no-store",
     });
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error("Cloudflare error: " + (json?.errors?.[0]?.message || JSON.stringify(json)));
+
+    const json = (await resp.json()) as unknown as CFResp;
+    if (!resp.ok) {
+      const msg = json?.errors?.[0]?.message || "Unknown Cloudflare error";
+      throw new Error("Cloudflare error: " + msg);
+    }
 
     const liveInput = json.result;
     await upsertStream({
-      eventId: params.id,
+      eventId: id,
       title: "PoolHub Stream",
-      playbackUrl: (liveInput?.playback?.hls || liveInput?.webRtc?.playback?.hls || undefined),
-      rtmpUrl: (liveInput?.rtmp?.url || undefined),
-      streamKey: (liveInput?.rtmp?.streamKey || undefined),
+      playbackUrl:
+        liveInput?.playback?.hls ??
+        liveInput?.webRtc?.playback?.hls ??
+        undefined,
+      rtmpUrl: liveInput?.rtmp?.url ?? undefined,
+      streamKey: liveInput?.rtmp?.streamKey ?? undefined,
       status: "idle",
     });
   }
@@ -59,11 +112,13 @@ export default async function ManageStream({ params }: { params: { id: string } 
       {/* Status banner */}
       {!stream?.rtmp_url || !stream?.stream_key ? (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 p-3 rounded">
-          No ingest yet — click <span className="font-semibold">Create Ingest</span> to get RTMP + Key, or paste yours below and Save.
+          No ingest yet — click <span className="font-semibold">Create Ingest</span> to get RTMP + Key,
+          or paste yours below and Save.
         </div>
       ) : !stream?.playback_url ? (
         <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 p-3 rounded">
-          Ingest ready — start streaming, then paste the <span className="font-semibold">Playback HLS</span> URL and set status to <span className="font-semibold">live</span>.
+          Ingest ready — start streaming, then paste the <span className="font-semibold">Playback HLS</span> URL
+          and set status to <span className="font-semibold">live</span>.
         </div>
       ) : (
         <div className="bg-green-500/10 border border-green-500/30 text-green-300 p-3 rounded">
@@ -106,10 +161,9 @@ export default async function ManageStream({ params }: { params: { id: string } 
         <label className="block mb-2">
           <div className="text-sm opacity-80">Status</div>
           <select name="status" defaultValue={stream?.status ?? "idle"} className="w-full bg-black/30 p-2 rounded">
-            <option value="idle">idle</option>
-            <option value="live">live</option>
-            <option value="ended">ended</option>
-            <option value="error">error</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
           </select>
         </label>
 
