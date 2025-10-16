@@ -1,14 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-type HlsType = typeof import("hls.js") extends { default: infer D } ? D : never;
-
 export default function HlsPlayer({ src, poster }: { src: string; poster?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let hls: HlsType | null = null;
+    // Keep the instance loosely typed to avoid TS constructor/instance mismatch
+    let hls: any | null = null;
     setError(null);
 
     const setup = async () => {
@@ -27,7 +26,7 @@ export default function HlsPlayer({ src, poster }: { src: string; poster?: strin
         hls = new Hls({ enableWorker: true });
         hls.loadSource(src);
         hls.attachMedia(video);
-        hls.on(Hls.Events.ERROR, (_evt, data: unknown) => {
+        hls.on(Hls.Events.ERROR, (_evt: unknown, data: unknown) => {
           const d = data as { fatal?: boolean } | undefined;
           if (d?.fatal) setError("Stream error — is the HLS URL correct and live?");
         });
@@ -39,7 +38,7 @@ export default function HlsPlayer({ src, poster }: { src: string; poster?: strin
     void setup();
 
     return () => {
-      const v = videoRef.current; // copy ref into local var for cleanup
+      const v = videoRef.current; // copy ref for cleanup
       if (hls) { try { hls.destroy(); } catch {} }
       if (v) { v.pause(); v.removeAttribute("src"); v.load(); }
     };
