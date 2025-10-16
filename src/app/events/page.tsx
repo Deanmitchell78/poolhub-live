@@ -3,20 +3,25 @@ import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+// 🔧 Types to avoid `any`
+type StreamRow = { status: string | null; playback_url: string | null };
+type EventRow = {
+  id: string;
+  title: string;
+  starts_at: string;
+  streams: StreamRow[] | null;
+};
+
 export default async function EventsList() {
-  // Server action to create a quick test event
-  async function createTestEvent() {
+  // Server action to create a quick test event (must return void for <form action>)
+  async function createTestEvent(): Promise<void> {
     "use server";
     const title = `Test Event ${new Date().toLocaleString()}`;
-    // Minimal insert; add more fields later if your schema requires
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("events")
-      .insert({ title, starts_at: new Date().toISOString() })
-      .select("id")
-      .single();
+      .insert({ title, starts_at: new Date().toISOString() });
     if (error) throw new Error(error.message);
-    // no redirect helper in server action here, so just return id and the UI will show it in the list after refresh
-    return data?.id as string;
+    // No return value — Next.js form actions must be void
   }
 
   const { data, error } = await supabase
@@ -27,6 +32,8 @@ export default async function EventsList() {
   if (error) {
     return <main className="max-w-3xl mx-auto p-6">Error loading events: {error.message}</main>;
   }
+
+  const rows: EventRow[] = (data ?? []) as unknown as EventRow[];
 
   return (
     <main className="max-w-3xl mx-auto p-6 space-y-4">
@@ -48,7 +55,7 @@ export default async function EventsList() {
       </div>
 
       <ul className="space-y-2">
-        {(data ?? []).map((e: any) => {
+        {rows.map((e) => {
           const s = Array.isArray(e.streams) ? e.streams[0] : null;
           const live = s?.status === "live" && !!s?.playback_url;
           return (
