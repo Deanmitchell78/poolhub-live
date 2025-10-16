@@ -1,56 +1,45 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
+import HlsPlayer from "../../../components/HlsPlayer";
 
-function fmt(dt: Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(dt);
-}
+export const dynamic = "force-dynamic";
 
-export default async function EventDetailPage({ params }: { params: { id: string } }) {
-  const event = await prisma.event.findUnique({
-    where: { id: params.id },
-    select: {
-      id: true,
-      title: true,
-      startsAt: true,
-      endsAt: true,
-      city: true,
-      state: true,
-      description: true,
-    },
-  });
+export default async function EventPage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params; // ✅ Await params here
 
-  if (!event) notFound();
+  const { data, error } = await supabase
+    .from("events")
+    .select("id,title,starts_at,streams(status,playback_url)")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) {
+    return (
+      <main className="p-6 text-center text-red-400">
+        Error loading event: {error?.message || "Not found"}
+      </main>
+    );
+  }
+
+  const s = Array.isArray(data.streams) ? data.streams[0] : null;
+  const hls = s?.playback_url ?? "";
+  const isLive = s?.status === "live";
 
   return (
-    <main className="min-h-screen p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">{event.title}</h1>
-        <Link href="/events" className="text-sm underline">← Back to Events</Link>
+    <main className="min-h-dvh p-6 flex flex-col items-center gap-4">
+      <h1 className="text-2xl font-bold">{data.title}</h1>
+      <div className="text-sm opacity-70">
+        {new Date(data.starts_at).toLocaleString()}
       </div>
-
-      <p className="text-gray-600">
-        {fmt(event.startsAt)}
-        {event.endsAt ? ` → ${fmt(event.endsAt)}` : ""} • {event.city ?? "—"}
-        {event.state ? `, ${event.state}` : ""}
-      </p>
-
-      {event.description ? (
-        <p className="text-gray-800 whitespace-pre-line">{event.description}</p>
+      {hls ? (
+        <>
+          <HlsPlayer src={hls} />
+          <p className={`text-sm ${isLive ? "text-green-400" : "opacity-70"}`}>
+            {isLive ? "LIVE" : "Stream offline or waiting to start"}
+          </p>
+        </>
       ) : (
-        <p className="text-gray-500">No description.</p>
+        <p className="text-gray-400">No playback URL found for this event.</p>
       )}
-    </main>
-  );
-}
-export default function EventDetailPage() {
-  return (
-    <main className="min-h-screen p-8">
-      <h1 className="text-3xl font-bold">Event</h1>
-      <p className="text-gray-600">Loading…</p>
     </main>
   );
 }
