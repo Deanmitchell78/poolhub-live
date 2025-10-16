@@ -1,20 +1,21 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
+type HlsType = typeof import("hls.js") extends { default: infer D } ? D : never;
+
 export default function HlsPlayer({ src, poster }: { src: string; poster?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Type hls correctly instead of `any`
-    let hls: (await import("hls.js")).default | null = null;
+    let hls: HlsType | null = null;
     setError(null);
 
     const setup = async () => {
       const video = videoRef.current;
       if (!video || !src) return;
 
-      // Safari/iOS native HLS
+      // Native HLS (Safari/iOS)
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = src;
         await video.play().catch(() => {});
@@ -27,7 +28,6 @@ export default function HlsPlayer({ src, poster }: { src: string; poster?: strin
         hls.loadSource(src);
         hls.attachMedia(video);
         hls.on(Hls.Events.ERROR, (_evt, data: unknown) => {
-          // Narrow type just enough for fatal flag
           const d = data as { fatal?: boolean } | undefined;
           if (d?.fatal) setError("Stream error — is the HLS URL correct and live?");
         });
@@ -47,7 +47,14 @@ export default function HlsPlayer({ src, poster }: { src: string; poster?: strin
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <video ref={videoRef} controls playsInline muted poster={poster} style={{ width: "100%", borderRadius: 12 }} />
+      <video
+        ref={videoRef}
+        controls
+        playsInline
+        muted
+        poster={poster}
+        style={{ width: "100%", borderRadius: 12 }}
+      />
       {error && <div style={{ marginTop: 12, color: "#fca5a5" }}>{error}</div>}
     </div>
   );
