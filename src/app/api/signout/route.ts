@@ -1,41 +1,50 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { supabaseServer } from "@/lib/supabase-server";
 
-import { NextResponse } from "next/server";
-import { cookies as nextCookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+// Names we may want to clear; adjust if you use different ones.
+const AUTH_COOKIE_NAMES = [
+  "sb:token",
+  "sb:refresh-token",
+  "supabase-auth-token",
+  "next-auth.session-token",
+  "next-auth.csrf-token",
+];
 
-export async function POST(request: Request) {
-  // We'll return JSON; most important is that we attach cookie changes to this response.
-  const response = NextResponse.json({ ok: true });
+async function doSignOutRedirect(to: string) {
+  const res = NextResponse.redirect(new URL(to, process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"));
 
-  // Read cookies from the incoming request
-  const reqCookies = nextCookies();
+  // In Next 15 route handlers, cookies() is async
+  const jar = await cookies();
 
-  // Create a Supabase server client that READS from request and WRITES to response
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return reqCookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set(name, value, options);
-        },
-        remove(name: string, options: CookieOptions) {
-          response.cookies.set(name, "", { ...options, maxAge: 0 });
-        },
-      },
-    }
-  );
-
-  try {
-    await supabase.auth.signOut();
-  } catch {
-    // ignore; response will still clear cookies
+  // Clear known auth cookies defensively
+  for (const name of AUTH_COOKIE_NAMES) {
+    // Not all cookies will exist; this is safe
+    res.cookies.set({
+      name,
+      value: "",
+      path: "/",
+      maxAge: 0,
+    });
   }
 
-  return response;
+  return res;
 }
+
+export async function POST(_req: NextRequest) {
+  const supabase = supabaseServer();
+  // Best-effort server-side signout (RLS will still protect)
+  await supabase.auth.signOut().catch(() => {});
+
+  return doSignOutRedirect("/");
+}
+
+// Optional GET handler so links to /api/signout also work
+export async function GET(_req: NextRequest) {
+  const supabase = supabaseServer();
+  await supabase.auth.signOut().catch(() => {});
+  return doSignOutRedirect("/");
+}
+
+// Ensure this file is treated as a module even if tree-shaken
+export {};
