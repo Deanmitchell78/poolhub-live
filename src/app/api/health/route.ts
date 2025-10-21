@@ -1,43 +1,37 @@
-// src/app/api/health/route.ts
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
-export const revalidate = 0;
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
-  try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-    const cfAccount = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
-    const cfToken = process.env.CLOUDFLARE_API_TOKEN ?? "";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const hasSupabaseUrl = Boolean(url);
+  const hasSupabaseAnon = Boolean(anon);
 
-    const info = {
-      hasSupabaseUrl: !!url,
-      hasSupabaseAnon: !!anon,
-      hasCfAccount: !!cfAccount,
-      hasCfToken: !!cfToken,
-      anonLength: anon.length, // safe: length only
-      urlLooksRight: url.startsWith("https://") && url.includes(".supabase.co"),
-      nodeEnv: process.env.NODE_ENV,
-    };
+  let supabaseOk = false;
+  let error: string | null = null;
 
-    // Build a server-safe Supabase client (no window/localStorage)
-    let supabaseOk = false;
+  if (hasSupabaseUrl && hasSupabaseAnon) {
     try {
-      const supabase = createClient(url, anon, { auth: { persistSession: false } });
-      // Light touch: just assert the shape (no network call)
-      supabaseOk = typeof supabase.from === "function";
-    } catch (e) {
-      return NextResponse.json({ ok: false, ...info, supabaseOk, error: String((e as Error).message) }, { status: 500 });
+      const supabase = createClient(url, anon);
+      // simple call that doesn't require auth: get auth settings
+      const { data, error: err } = await supabase.auth.getSession();
+      // getSession may be null when not logged in, but shouldn't throw
+      supabaseOk = !err;
+      if (err) error = err.message;
+    } catch (e: any) {
+      error = e?.message ?? "Unknown error creating Supabase client";
     }
-
-    return NextResponse.json({ ok: info.hasSupabaseUrl && info.hasSupabaseAnon, ...info, supabaseOk }, {
-      headers: { "Cache-Control": "no-store" }
-    });
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String((e as Error).message) }, { status: 500 });
+  } else {
+    error = "Supabase env vars missing: set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.";
   }
+
+  return NextResponse.json({
+    ok: hasSupabaseUrl && hasSupabaseAnon && supabaseOk,
+    hasSupabaseUrl,
+    hasSupabaseAnon,
+    supabaseOk,
+    error,
+  });
 }
