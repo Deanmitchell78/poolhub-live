@@ -12,17 +12,16 @@ export async function POST(
   const user = userData?.user;
 
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-
   if (!user) {
     return NextResponse.redirect(new URL("/sign-in", base));
   }
 
-  // RLS should restrict delete to owner
   const { error } = await supabase.from("tournaments").delete().eq("id", id);
-
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   }
 
   return NextResponse.redirect(new URL("/tournaments", base));
 }
+
+export {};
