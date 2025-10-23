@@ -1,127 +1,161 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-export default function PostComposer() {
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isVideo, setIsVideo] = useState(false);
+type Props = {
+  onCreated?: () => void;
+};
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    setLoading(true);
+export default function PostComposer({ onCreated }: Props) {
+  const [content, setContent] = useState<string>("");
+  const [mediaUrl, setMediaUrl] = useState<string>("");
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [posting, setPosting] = useState<boolean>(false);
+  const [err, setErr] = useState<string | null>(null);
 
-    try {
-      const content = (formRef.current?.elements.namedItem("content") as HTMLTextAreaElement)?.value ?? "";
-      const fileInput = formRef.current?.elements.namedItem("media") as HTMLInputElement | null;
-      const file = fileInput?.files?.[0] ?? null;
+  const handleFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-      // Ensure we have a session
-      const { data: { user }, error: userErr } = await supabaseBrowser.auth.getUser();
-      if (userErr || !user) throw new Error("Please sign in to post.");
+      setErr(null);
+      setUploading(true);
+      try {
+        const supabase = supabaseBrowser();
 
-      // Optional media upload
-      let mediaUrl: string | null = null;
-      if (file) {
-        const allowed = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/webm"];
-        if (!allowed.includes(file.type)) {
-          throw new Error(`Unsupported file type: ${file.type}`);
+        // make sure user is signed in (also gets userId for path)
+        const { data: { user }, error: userErr } = await supabase.auth.getUser();
+        if (userErr || !user) throw new Error("Please sign in to upload.");
+
+        const okTypes = [
+          "image/jpeg", "image/png", "image/webp", "image/avif", "image/gif",
+          "video/mp4"
+        ];
+        if (!okTypes.includes(file.type)) {
+          throw new Error("Unsupported file type (use JPG/PNG/WebP/AVIF/GIF or MP4).");
         }
-        if (file.size > 50 * 1024 * 1024) {
-          throw new Error(`File too large (${(file.size/1024/1024).toFixed(1)}MB). Max 50MB.`);
-        }
 
-        const ext = (file.name.split(".").pop() || "bin").toLowerCase();
-        const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+        const ts = Date.now();
+        const clean = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${user.id}/${ts}-${clean}`;
 
-        // ✅ Browser upload: pass the File directly
-        const { error: upErr } = await supabaseBrowser
-          .storage
-          .from("post-media")
-          .upload(path, file, { upsert: false, contentType: file.type });
+        const up = await supabase.storage.from("posts").upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
+        if (up.error) throw up.error;
 
-        if (upErr) throw new Error(`Storage upload failed: ${upErr.message}`);
+        const pub = supabase.storage.from("posts").getPublicUrl(path);
+        const url = pub.data.publicUrl;
+        if (!url) throw new Error("Could not get public URL.");
 
-        const { data } = supabaseBrowser.storage.from("post-media").getPublicUrl(path);
-        mediaUrl = data.publicUrl;
-        if (!mediaUrl) throw new Error("Public URL not returned for uploaded media");
+        setMediaUrl(url);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setErr(msg);
+      } finally {
+        setUploading(false);
+        // allow re-selecting the same file
+        e.target.value = "";
       }
+    },
+    []
+  );
 
-      // Insert post row from the browser (RLS enforces author = auth.uid())
-      const { error: insErr } = await supabaseBrowser
-        .from("posts")
-        .insert({ author_id: user.id, content, image_url: mediaUrl });
+  const submit = useCallback(
+    async (ev: React.FormEvent) => {
+      ev.preventDefault();
+      if (posting) return;
+      setPosting(true);
+      setErr(null);
 
-      if (insErr) throw new Error(`Post insert failed: ${insErr.message}`);
+      try {
+        const supabase = supabaseBrowser();
 
-      setMsg("Posted!");
-      formRef.current?.reset();
-      setPreviewUrl(null);
-      setIsVideo(false);
+        // Ensure we have a session
+        const { data: { user }, error: userErr } = await supabase.auth.getUser();
+        if (userErr || !user) throw new Error("Please sign in to post.");
 
-      // Refresh feed
-      window.location.reload();
-    } catch (err: any) {
-      setMsg(err?.message ?? "Post failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+        const payload = {
+          author_id: user.id,
+          content: content || null,
+          image_url: mediaUrl || null,
+        };
+
+        const { error } = await supabase.from("posts").insert([payload]);
+        if (error) throw error;
+
+        setContent("");
+        setMediaUrl("");
+        onCreated?.();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setErr(msg);
+      } finally {
+        setPosting(false);
+      }
+    },
+    [posting, content, mediaUrl, onCreated]
+  );
 
   return (
-    <div className="rounded-2xl border p-4 mb-6">
-      <h3 className="text-lg font-semibold mb-2">Create a post</h3>
-      <form ref={formRef} onSubmit={onSubmit} className="space-y-3">
+    <section className="rounded-2xl border p-4 space-y-3 bg-white">
+      <h2 className="text-lg font-semibold">Create a post</h2>
+
+      {err ? (
+        <div className="rounded-xl p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
+          {err}
+        </div>
+      ) : null}
+
+      <form onSubmit={submit} className="space-y-3">
         <textarea
-          name="content"
-          placeholder="What's on your mind?"
-          className="w-full border rounded-xl p-3"
-          rows={3}
+          className="w-full border rounded-xl px-3 py-2 min-h-[90px]"
+          placeholder="What’s on your mind?"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
         />
-        <input
-          type="file"
-          name="media"
-          accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (!f) {
-              setPreviewUrl(null);
-              setIsVideo(false);
-              return;
-            }
-            const url = URL.createObjectURL(f);
-            setPreviewUrl(url);
-            setIsVideo(f.type.startsWith("video/"));
-          }}
-        />
-        {previewUrl && (
-          <div className="rounded-xl border p-2 bg-black/5">
-            {isVideo ? (
-              <video src={previewUrl} controls className="max-h-64 w-full rounded-lg" />
-            ) : (
-              <div className="w-full flex justify-center">
-                <img
-                  src={previewUrl}
-                  alt="Preview"
-                  className="max-h-64 w-auto rounded-lg object-contain"
-                  style={{ display: "block" }}
-                />
-              </div>
-            )}
+
+        <div className="grid gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <input
+              className="w-full border rounded-xl px-3 py-2"
+              placeholder="Optional media URL (auto-filled after upload)"
+              value={mediaUrl}
+              onChange={(e) => setMediaUrl(e.target.value)}
+            />
+            <label className="inline-flex items-center gap-2">
+              <span className="rounded-2xl border px-3 py-2 cursor-pointer">
+                Choose file
+              </span>
+              <input
+                type="file"
+                accept="image/*,video/mp4"
+                onChange={handleFile}
+                className="hidden"
+              />
+            </label>
           </div>
-        )}
-        <button
-          className="px-4 py-2 rounded-2xl shadow border disabled:opacity-50"
-          disabled={loading}
-        >
-          {loading ? "Posting..." : "Post"}
-        </button>
+          {uploading ? (
+            <div className="text-sm text-gray-600">Uploading…</div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={posting}
+            className="rounded-2xl border px-4 py-2"
+          >
+            {posting ? "Posting…" : "Post"}
+          </button>
+          <span className="text-xs text-gray-500">
+            Tip: Upload a file or paste any https URL.
+          </span>
+        </div>
       </form>
-      {msg && <p className="mt-2 text-sm">{msg}</p>}
-    </div>
+    </section>
   );
 }
