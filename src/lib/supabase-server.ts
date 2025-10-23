@@ -2,35 +2,31 @@ import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 /**
- * Server-side Supabase client that reads/writes the auth cookies
- * so routes like /profile and /sign-in can detect the logged-in user.
+ * Next.js 15: cookies() is async. Call this with `await`.
+ *
+ * Example:
+ *   const supabase = await supabaseServer();
+ *   const { data } = await supabase.auth.getUser();
  */
-export function supabaseServer() {
-  const cookieStore = cookies();
+export async function supabaseServer() {
+  const cookieStore = await cookies(); // <-- await is required in Next 15
 
-  return createServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        // These can be async in @supabase/ssr
+        get: async (name: string) => cookieStore.get(name)?.value,
+        set: async (name: string, value: string, options: CookieOptions) => {
+          cookieStore.set(name, value, options);
         },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch {
-            // ignore during SSR where mutating headers may be restricted
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-          } catch {
-            // ignore during SSR where mutating headers may be restricted
-          }
+        remove: async (name: string, options: CookieOptions) => {
+          cookieStore.set(name, "", { ...options, maxAge: 0 });
         },
       },
     }
   );
+
+  return supabase;
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
@@ -126,11 +126,11 @@ export default function LivePlayer({
         // Fatal errors: attempt recovery strategies
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            setLastErr(`fatal NETWORK_ERROR/${data.details} — trying to recover`);
+            setLastErr(`fatal NETWORK_ERROR/${data.details} â€” trying to recover`);
             instance.startLoad();
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
-            setLastErr(`fatal MEDIA_ERROR/${data.details} — trying to recover`);
+            setLastErr(`fatal MEDIA_ERROR/${data.details} â€” trying to recover`);
             instance.recoverMediaError();
             break;
           default:
@@ -202,7 +202,7 @@ export default function LivePlayer({
           <span className={badge}>
             {status === "live" && "Live"}
             {status === "offline" && "Offline"}
-            {status === "checking" && "Checking…"}
+            {status === "checking" && "Checkingâ€¦"}
             {status === "error" && "Stream Error"}
           </span>
         </div>

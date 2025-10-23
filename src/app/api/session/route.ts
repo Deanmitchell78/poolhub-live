@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabaseServer } from "../../../lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.getUser();
   return NextResponse.json({
     ok: !error && !!data?.user,

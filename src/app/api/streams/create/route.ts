@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -23,7 +23,7 @@ type StreamRow = { playback_url: string | null; status: "idle" | "live" | "ended
 
 export async function POST(req: NextRequest) {
   try {
-    // ⬇️ Defer Supabase until runtime so build doesn't evaluate it
+    // â¬‡ï¸ Defer Supabase until runtime so build doesn't evaluate it
     const { supabase } = await import("@/lib/supabase");
 
     const parsed = (await req.json()) as Partial<Body>;

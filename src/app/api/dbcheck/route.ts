@@ -1,4 +1,4 @@
-// src/app/api/dbcheck/route.ts
+﻿// src/app/api/dbcheck/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 

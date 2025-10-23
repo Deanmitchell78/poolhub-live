@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useEffect, useRef, useState } from "react";
 
 export default function HlsPlayer({ src, poster }: { src: string; poster?: string }) {
@@ -28,10 +28,10 @@ export default function HlsPlayer({ src, poster }: { src: string; poster?: strin
         hls.attachMedia(video);
         hls.on(Hls.Events.ERROR, (_evt: unknown, data: unknown) => {
           const d = data as { fatal?: boolean } | undefined;
-          if (d?.fatal) setError("Stream error — is the HLS URL correct and live?");
+          if (d?.fatal) setError("Stream error â€” is the HLS URL correct and live?");
         });
       } else {
-        setError("Your browser doesn’t support HLS playback.");
+        setError("Your browser doesnâ€™t support HLS playback.");
       }
     };
 

@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase-server";
 
 export async function POST(req: NextRequest) {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data: userData } = await supabase.auth.getUser();
   const user = userData?.user;
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   if (payload.handle && !/^[a-z0-9_\.]{3,20}$/.test(payload.handle)) {
     return NextResponse.json(
-      { ok: false, error: "Handle must be 3–20 chars: letters, numbers, underscore, dot." },
+      { ok: false, error: "Handle must be 3â€“20 chars: letters, numbers, underscore, dot." },
       { status: 400 }
     );
     }

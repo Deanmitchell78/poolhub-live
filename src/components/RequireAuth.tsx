@@ -1,49 +1,44 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-/**
- * Supabase-based auth gate.
- * - While checking: shows a lightweight message
- * - If not signed in: redirects to /sign-in
- * - If signed in: renders children
- */
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [checking, setChecking] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const supabase = supabaseBrowser();
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
+    let mounted = true;
 
-      if (!data.session) {
-        router.replace("/sign-in");
-      } else {
-        setChecking(false);
+    async function check() {
+      const { data: { user } } = await supabaseBrowser.auth.getUser();
+      if (!mounted) return;
+      setAuthed(!!user);
+      setReady(true);
+      if (!user) {
+        // not signed in — go to sign-in
+        window.location.replace("/(auth)/sign-in");
       }
+    }
 
-      // also listen briefly in case session restores after mount
-      const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-        if (cancelled) return;
-        if (session) setChecking(false);
-        else router.replace("/sign-in");
-      });
-      return () => sub.subscription.unsubscribe();
-    })();
+    check();
+
+    const { data: sub } = supabaseBrowser.auth.onAuthStateChange((_evt, session) => {
+      if (!mounted) return;
+      setAuthed(!!session?.user);
+    });
 
     return () => {
-      cancelled = true;
+      mounted = false;
+      sub.subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
-  if (checking) {
-    return <p className="text-gray-600">Checking your session…</p>;
+  if (!ready) {
+    return <div className="p-4 text-sm text-gray-500">Checking your session…</div>;
   }
+
+  if (!authed) return null; // we just redirected
 
   return <>{children}</>;
 }

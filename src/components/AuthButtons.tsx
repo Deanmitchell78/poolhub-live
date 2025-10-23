@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import { useSession, signIn, signOut } from 'next-auth/react';
 
 export default function AuthButtons() {
   const { data: session, status } = useSession();
 
-  if (status === 'loading') return <span className="text-sm text-gray-500">…</span>;
+  if (status === 'loading') return <span className="text-sm text-gray-500">â€¦</span>;
 
   if (session) {
     return (

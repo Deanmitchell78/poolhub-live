@@ -1,11 +1,25 @@
-"use client";
-export default function GlobalError({ error, reset }: { error: any; reset: () => void }) {
+﻿"use client";
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   console.error("App crashed:", error);
   return (
-    <html><body style={{padding:16}}>
+    <div style={{ padding: 16 }}>
       <h1>Something went wrong</h1>
-      <pre style={{whiteSpace:"pre-wrap"}}>{String(error?.message ?? error)}</pre>
-      <button onClick={() => reset()}>Try again</button>
-    </body></html>
+      <pre style={{ whiteSpace: "pre-wrap" }}>
+        {String(error?.message ?? error)}
+      </pre>
+      <button
+        onClick={() => reset()}
+        style={{ marginTop: 12, padding: "8px 12px", border: "1px solid #ddd", borderRadius: 8 }}
+      >
+        Try again
+      </button>
+    </div>
   );
 }

@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
 export default function SocialShare({
   url,
   title = "Watch live on PoolHub",
-  text = "I’m live now — come watch!",
+  text = "Iâ€™m live now â€” come watch!",
 }: {
   url: string;
   title?: string;
@@ -80,7 +80,7 @@ export default function SocialShare({
           onClick={onNativeShare}
           title="Share with apps"
         >
-          Share…
+          Shareâ€¦
         </button>
         <button
           type="button"

@@ -1,4 +1,4 @@
-// src/app/api/events/route.ts
+﻿// src/app/api/events/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const description = typeof body.description === "string" ? body.description.trim() : undefined;
 
   if (title.length < 3 || title.length > 100) {
-    return NextResponse.json({ ok: false, error: "Title must be 3–100 chars." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "Title must be 3â€“100 chars." }, { status: 400 });
   }
 
   const start = new Date(startsAt);

@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+﻿import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Read envs (may be undefined during build; that's okay here)
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

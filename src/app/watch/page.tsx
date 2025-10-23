@@ -1,10 +1,10 @@
-import HlsPlayer from "../../components/HlsPlayer";
+﻿import HlsPlayer from "../../components/HlsPlayer";
 
 export default function WatchPage({ searchParams }: { searchParams: { url?: string; src?: string } }) {
   const src = searchParams?.url ?? searchParams?.src ?? "";
   return (
     <main className="min-h-dvh p-6 flex flex-col items-center gap-6">
-      <h1 className="text-2xl font-bold">PoolHub Live — Watch</h1>
+      <h1 className="text-2xl font-bold">PoolHub Live â€” Watch</h1>
       {src ? (
         <HlsPlayer src={src} />
       ) : (

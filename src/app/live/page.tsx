@@ -1,4 +1,4 @@
-export const runtime = "nodejs";
+﻿export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
@@ -31,7 +31,7 @@ export default async function LivePage({
           </p>
         </div>
         <Link href="/events" className="text-sm underline">
-          Browse events →
+          Browse events â†’
         </Link>
       </header>
 
@@ -72,11 +72,11 @@ export default async function LivePage({
       <SocialShare
         url={shareUrl}
         title="Watch live on PoolHub"
-        text="I’m live on PoolHub — come watch!"
+        text="Iâ€™m live on PoolHub â€” come watch!"
       />
 
       <footer className="pt-2">
-        <Link href="/" className="underline text-sm">← Home</Link>
+        <Link href="/" className="underline text-sm">â† Home</Link>
       </footer>
     </main>
   );

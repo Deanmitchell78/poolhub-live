@@ -15,7 +15,7 @@
   "dependencies": {
     "@prisma/client": "^6.17.0",
     "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.75.1",
+    "@supabase/supabase-js": "^2.76.1",
     "date-fns": "^4.1.0",
     "hls.js": "^1.6.13",
     "next": "^15.5.4",

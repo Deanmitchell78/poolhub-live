@@ -7,7 +7,7 @@ export async function POST(
 ) {
   const { id: eventId } = await ctx.params;
 
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data: userData } = await supabase.auth.getUser();
   const user = userData?.user;
 
@@ -38,25 +38,27 @@ export async function POST(
   }
 
   // Upsert logic: update if streamId provided, else insert
-  let error = null as any;
-
   if (streamId) {
     const { error: updErr } = await supabase
       .from("streams")
       .update({ title, hls_url, is_live, order_index })
       .eq("id", streamId)
       .eq("event_id", eventId);
-    error = updErr;
+
+    if (updErr) {
+      return NextResponse.json({ ok: false, error: updErr.message }, { status: 400 });
+    }
   } else {
     const { error: insErr } = await supabase
       .from("streams")
       .insert({ event_id: eventId, title, hls_url, is_live, order_index });
-    error = insErr;
-  }
 
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    if (insErr) {
+      return NextResponse.json({ ok: false, error: insErr.message }, { status: 400 });
+    }
   }
 
   return NextResponse.redirect(new URL(`/events/${eventId}/edit?updated=1`, base));
 }
+
+export {};

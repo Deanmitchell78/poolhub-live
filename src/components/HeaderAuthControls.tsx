@@ -1,40 +1,56 @@
-"use client";
+﻿"use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import HeaderSignOutButton from "@/components/HeaderSignOutButton";
+
+type SessionUser = { id: string; email?: string | null };
 
 export default function HeaderAuthControls() {
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
-    const supabase = supabaseBrowser();
+    let mounted = true;
 
-    // initial check
-    supabase.auth.getSession().then(({ data }) => {
-      setSignedIn(!!data.session);
+    // Initial load
+    supabaseBrowser.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      const u = data?.user;
+      setUser(u ? { id: u.id, email: u.email } : null);
     });
 
-    // live updates
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      setSignedIn(!!session);
+    // Subscribe to auth changes
+    const { data: sub } = supabaseBrowser.auth.onAuthStateChange((_evt, session) => {
+      if (!mounted) return;
+      const u = session?.user;
+      setUser(u ? { id: u.id, email: u.email } : null);
     });
 
     return () => {
+      mounted = false;
       sub.subscription.unsubscribe();
     };
   }, []);
 
-  // while checking, render nothing to avoid flicker
-  if (signedIn === null) return null;
+  if (user) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm">{user.email}</span>
+        <button
+          className="text-sm border rounded-xl px-3 py-1"
+          onClick={async () => {
+            await supabaseBrowser.auth.signOut();
+            window.location.replace("/(auth)/sign-in");
+          }}
+        >
+          Sign out
+        </button>
+      </div>
+    );
+  }
 
-  return signedIn ? (
-    <>
-      <Link href="/me" className="px-3 py-1.5 rounded bg-black text-white">Account</Link>
-      <HeaderSignOutButton />
-    </>
-  ) : (
-    <Link href="/sign-in" className="px-3 py-1.5 rounded bg-black text-white">Sign in</Link>
+  return (
+    <a className="text-sm border rounded-xl px-3 py-1" href="/(auth)/sign-in">
+      Sign in
+    </a>
   );
 }

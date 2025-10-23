@@ -18,7 +18,7 @@ export default async function EventEditPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
 
   // Must be signed in
   const { data: userData } = await supabase.auth.getUser();

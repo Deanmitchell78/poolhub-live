@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { supabaseServer } from "@/lib/supabase-server";
 
@@ -32,7 +32,7 @@ async function doSignOutRedirect(to: string) {
 }
 
 export async function POST(_req: NextRequest) {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   // Best-effort server-side signout (RLS will still protect)
   await supabase.auth.signOut().catch(() => {});
 
@@ -41,7 +41,7 @@ export async function POST(_req: NextRequest) {
 
 // Optional GET handler so links to /api/signout also work
 export async function GET(_req: NextRequest) {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   await supabase.auth.signOut().catch(() => {});
   return doSignOutRedirect("/");
 }

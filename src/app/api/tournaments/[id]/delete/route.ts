@@ -7,7 +7,7 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data: userData } = await supabase.auth.getUser();
   const user = userData?.user;
 
@@ -16,7 +16,9 @@ export async function POST(
     return NextResponse.redirect(new URL("/sign-in", base));
   }
 
+  // RLS should restrict delete to owner
   const { error } = await supabase.from("tournaments").delete().eq("id", id);
+
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   }

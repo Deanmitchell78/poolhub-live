@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 
@@ -86,7 +86,7 @@ export default function SettingsForm() {
         const j = await res.json().catch(() => ({}));
         throw new Error(j?.error || `HTTP ${res.status}`);
       }
-      setSaved('Saved ✔');
+      setSaved('Saved âœ”');
     } catch (e: unknown) {
   const msg = e instanceof Error ? e.message : 'Save failed. Please try again.';
   setError(msg);
@@ -94,7 +94,7 @@ export default function SettingsForm() {
 
   }
 
-  if (loading) return <p className="text-gray-600">Loading…</p>;
+  if (loading) return <p className="text-gray-600">Loadingâ€¦</p>;
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-xl">
@@ -111,7 +111,7 @@ export default function SettingsForm() {
           placeholder="e.g., dean"
         />
         <div className="text-xs text-gray-500 mt-1">
-          3–20 chars: a–z, 0–9, dot (.), underscore (_), hyphen (-). Your profile URL becomes /profile/yourhandle
+          3â€“20 chars: aâ€“z, 0â€“9, dot (.), underscore (_), hyphen (-). Your profile URL becomes /profile/yourhandle
         </div>
       </label>
 
@@ -207,7 +207,7 @@ export default function SettingsForm() {
           onChange={(e) => onChange('bio', e.target.value)}
           className="w-full rounded border px-3 py-2"
           rows={4}
-          placeholder="Tell people about your game, favorite rooms, achievements…"
+          placeholder="Tell people about your game, favorite rooms, achievementsâ€¦"
         />
       </label>
 

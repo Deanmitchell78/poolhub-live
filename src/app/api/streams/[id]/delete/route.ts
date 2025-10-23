@@ -7,7 +7,7 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data: userData } = await supabase.auth.getUser();
   const user = userData?.user;
 
@@ -20,6 +20,8 @@ export async function POST(
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   }
 
-  // Go back to previous page if available; fall back to events list
+  // Prefer returning to the edit page; the browser referrer will usually handle it.
   return NextResponse.redirect(new URL("/events", base));
 }
+
+export {};

@@ -1,116 +1,79 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
-import TournamentCreateForm from "@/components/TournamentCreateForm";
+
+type Row = {
+  id: string;
+  name: string | null;
+  slug: string | null;
+  starts_at: string | null;
+  city: string | null;
+  entry_fee_cents: number | null;
+};
+
+function fmtWhen(iso: string | null) {
+  if (!iso) return "TBD";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "TBD" : d.toLocaleString();
+}
+
+function fmtMoney(cents: number | null) {
+  if (cents == null) return "";
+  const dollars = (cents / 100).toFixed(2);
+  return `$${dollars}`;
+}
 
 export default async function TournamentsPage() {
-  const supabase = supabaseServer();
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData?.user;
-
-  if (!user) {
-    redirect("/sign-in");
-  }
+  // ✅ MUST await — Next 15 cookies() are async, so supabaseServer() is async
+  const supabase = await supabaseServer();
 
   const nowIso = new Date().toISOString();
-
-  // Fetch yours
-  const { data: myTournaments } = await supabase
+  const { data: rows, error } = await supabase
     .from("tournaments")
-    .select(
-      "id, name, slug, description, starts_at, city, format, entry_fee_cents, created_at"
-    )
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: false });
-
-  // Fetch upcoming
-  const { data: recent } = await supabase
-    .from("tournaments")
-    .select(
-      "id, name, slug, description, starts_at, city, format, entry_fee_cents, created_at"
-    )
+    .select("id, name, slug, starts_at, city, entry_fee_cents")
     .gte("starts_at", nowIso)
     .order("starts_at", { ascending: true })
-    .limit(25);
+    .limit(100);
 
-  function dollars(cents: number | null | undefined) {
-    if (cents == null) return null;
-    return `$${(cents / 100).toFixed(2)}`;
-  }
+  const list = Array.isArray(rows) ? (rows as Row[]) : [];
+  const errMsg = error?.message ?? null;
 
   return (
-    <main className="max-w-3xl mx-auto p-6 space-y-8">
-      <header className="space-y-1">
+    <main className="space-y-6">
+      <div className="rounded-2xl p-6 bg-gradient-to-r from-sky-500/20 via-fuchsia-500/20 to-violet-500/20 border shadow-sm">
         <h1 className="text-2xl font-bold">Tournaments</h1>
-        <p className="text-gray-700">
-          Signed in as <span className="font-semibold">{user.email}</span>.
-        </p>
-      </header>
+        <p className="text-gray-700">Browse upcoming tournaments.</p>
+      </div>
 
-      {/* Create form */}
-      <TournamentCreateForm ownerId={user.id} />
-
-      {/* Your tournaments */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Your tournaments</h2>
-        {!myTournaments || myTournaments.length === 0 ? (
-          <p className="text-gray-600">You haven’t created any tournaments yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {myTournaments.map((t) => (
-              <li key={t.id} className="border rounded p-3">
-                <div className="flex items-center justify-between">
-                  <a href={`/tournaments/${t.slug}`} className="font-medium underline">
-                    {t.name}
-                  </a>
-                  <span className="text-xs text-gray-500">
-                    {t.starts_at ? new Date(t.starts_at).toLocaleString() : "TBD"}
-                  </span>
+      {errMsg ? (
+        <div className="rounded-xl p-4 bg-red-50 border border-red-200 text-red-700">
+          Failed to load tournaments: {errMsg}
+        </div>
+      ) : list.length === 0 ? (
+        <p className="text-gray-600">No upcoming tournaments.</p>
+      ) : (
+        <ul className="divide-y rounded-2xl border shadow-sm bg-white">
+          {list.map((t) => (
+            <li key={t.id} className="p-4 flex items-center justify-between">
+              <div className="min-w-0">
+                <div className="font-medium truncate">{t.name ?? "Tournament"}</div>
+                <div className="text-sm text-gray-600">
+                  {fmtWhen(t.starts_at)}
+                  {t.city ? ` • ${t.city}` : ""}
+                  {t.entry_fee_cents != null ? ` • ${fmtMoney(t.entry_fee_cents)} entry` : ""}
                 </div>
-                <p className="text-sm text-gray-600">
-                  {t.city ? `${t.city} • ` : ""}
-                  {t.format ?? "format tbd"}
-                  {t.entry_fee_cents != null ? ` • ${dollars(t.entry_fee_cents)}` : ""}
-                </p>
-                {t.description && <p className="text-gray-800 mt-1">{t.description}</p>}
-                <p className="text-xs text-gray-500 mt-1">/{t.slug}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Upcoming / recent tournaments */}
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Upcoming</h2>
-        {!recent || recent.length === 0 ? (
-          <p className="text-gray-600">No upcoming tournaments yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {recent.map((t) => (
-              <li key={t.id} className="border rounded p-3">
-                <div className="flex items-center justify-between">
-                  <a href={`/tournaments/${t.slug}`} className="font-medium underline">
-                    {t.name}
-                  </a>
-                  <span className="text-xs text-gray-500">
-                    {t.starts_at ? new Date(t.starts_at).toLocaleString() : "TBD"}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600">
-                  {t.city ? `${t.city} • ` : ""}
-                  {t.format ?? "format tbd"}
-                  {t.entry_fee_cents != null ? ` • ${dollars(t.entry_fee_cents)}` : ""}
-                </p>
-                {t.description && <p className="text-gray-800 mt-1">{t.description}</p>}
-                <p className="text-xs text-gray-500 mt-1">/{t.slug}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </div>
+              <a
+                href={t.slug ? `/tournaments/${t.slug}` : `/tournaments/${t.id}`}
+                className="text-sm rounded-2xl px-3 py-1 border shadow bg-white"
+              >
+                Open
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

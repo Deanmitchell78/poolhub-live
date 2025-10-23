@@ -1,11 +1,11 @@
-export const runtime = "nodejs";
+﻿export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { supabaseServer } from "../../lib/supabase-server";
 
 export default async function SettingsPage() {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
   const { data } = await supabase.auth.getUser();
   const user = data?.user;
 

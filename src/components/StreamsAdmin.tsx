@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 export type EditableStream = {
   id: string;

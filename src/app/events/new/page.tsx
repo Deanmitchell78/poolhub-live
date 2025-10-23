@@ -1,60 +1,53 @@
-import { createEvent } from "../actions";
+﻿export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export default function NewEventPage() {
-  // Wrap createEvent so the form action returns void
-  async function handleCreate(formData: FormData): Promise<void> {
-    "use server";
-    await createEvent(formData); // ignore returned object to satisfy Next's type
+import { supabaseServer } from "@/lib/supabase-server";
+import EventForm from "@/components/EventForm";
+
+export default async function NewEventPage() {
+  const supabase = supabaseServer();
+
+  const { data: { user } } = await (await supabase).auth.getUser();
+  if (!user) {
+    return (
+      <main className="max-w-3xl mx-auto p-6">
+        <div className="rounded-2xl border bg-white shadow-sm p-6">
+          <p className="mb-3">Please sign in to create an event.</p>
+          <a className="rounded-2xl px-4 py-2 border shadow bg-black text-white" href="/sign-in">Sign in</a>
+        </div>
+      </main>
+    );
+  }
+
+  const { data: profile } = await (await supabase)
+    .from("profiles")
+    .select("plan")
+    .eq("id", user.id)
+    .maybeSingle();
+  const plan = profile?.plan ?? "free";
+
+  if (!(plan === "pro" || plan === "td")) {
+    return (
+      <main className="max-w-3xl mx-auto p-6">
+        <div className="rounded-2xl border bg-white shadow-sm p-6 space-y-3">
+          <h1 className="text-xl font-semibold">Upgrade required</h1>
+          <p>Creating events is available on <strong>Pro ($9.99/mo)</strong> and <strong>Tournament Director ($29.99/mo)</strong> plans.</p>
+          <a className="rounded-2xl px-4 py-2 border shadow bg-black text-white" href="/settings?upgrade=pro">
+            View plans
+          </a>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-8 space-y-6">
-      <h1 className="text-3xl font-bold">Create Event</h1>
-
-      <form action={handleCreate} className="space-y-4">
-        <div>
-          <label className="block text-sm opacity-80 mb-1">Title *</label>
-          <input
-            name="title"
-            className="w-full rounded-lg bg-white/5 border border-white/10 p-3"
-            placeholder="Friday Night 9-Ball"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm opacity-80 mb-1">Starts At (local) *</label>
-          <input
-            type="datetime-local"
-            name="startsAt"
-            className="w-full rounded-lg bg-white/5 border border-white/10 p-3"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm opacity-80 mb-1">Location</label>
-          <input
-            name="location"
-            className="w-full rounded-lg bg-white/5 border border-white/10 p-3"
-            placeholder="Seagrove Billiards"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm opacity-80 mb-1">Description</label>
-          <textarea
-            name="description"
-            className="w-full rounded-lg bg-white/5 border border-white/10 p-3"
-            rows={4}
-            placeholder="Live action stream. Race to 9."
-          />
-        </div>
-
-        <button className="rounded-xl px-4 py-2 bg-white text-black font-semibold">
-          Save Event
-        </button>
-      </form>
+    <main className="max-w-3xl mx-auto p-6 space-y-4">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Create an Event</h1>
+      </header>
+      <div className="rounded-2xl border bg-white shadow-sm p-6">
+        <EventForm />
+      </div>
     </main>
   );
 }

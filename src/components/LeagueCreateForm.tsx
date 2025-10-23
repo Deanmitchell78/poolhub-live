@@ -1,136 +1,80 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type Props = {
-  ownerId: string;
-  onCreated?: () => void; // optional: parent can refresh list
+  onCreated?: (id: string) => void;
 };
 
-const SLUG_RE = /^[a-z0-9-]{3,40}$/; // lowercase, numbers, dashes
-
-function slugify(input: string) {
-  return input
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-}
-
-export default function LeagueCreateForm({ ownerId, onCreated }: Props) {
+export default function LeagueCreateForm({ onCreated }: Props) {
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "error" | "saved">("idle");
-  const [message, setMessage] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  function handleNameChange(v: string) {
-    setName(v);
-    // auto-suggest slug only if user hasn't typed slug manually yet
-    if (!slug) {
-      setSlug(slugify(v));
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus("saving");
-    setMessage("");
+    setMsg(null);
+    setLoading(true);
 
-    const supabase = supabaseBrowser();
+    try {
+      const { data: { user }, error: userErr } = await supabaseBrowser.auth.getUser();
+      if (userErr || !user) throw new Error("Please sign in.");
 
-    const finalName = name.trim();
-    const finalSlug = (slug || slugify(name)).toLowerCase();
+      // Adjust the table/columns if your schema is different
+      const { data, error } = await supabaseBrowser
+        .from("leagues")
+        .insert({
+          owner_id: user.id,
+          name: name.trim(),
+          city: city.trim() || null,
+          state: state.trim() || null,
+        })
+        .select("id")
+        .single();
 
-    if (finalName.length < 3) {
-      setStatus("error");
-      setMessage("Name must be at least 3 characters.");
-      return;
+      if (error) throw new Error(error.message);
+
+      setMsg("League created!");
+      setName(""); setCity(""); setState("");
+      onCreated?.(data.id);
+    } catch (err: any) {
+      setMsg(err?.message ?? "Failed to create league");
+    } finally {
+      setLoading(false);
     }
-    if (!SLUG_RE.test(finalSlug)) {
-      setStatus("error");
-      setMessage("Slug must be 3–40 chars, lowercase letters/numbers/dashes.");
-      return;
-    }
-
-    const { error } = await supabase.from("leagues").insert({
-      owner_id: ownerId,
-      name: finalName,
-      slug: finalSlug,
-      description: description.trim() || null,
-    });
-
-    if (error) {
-      // Handle unique constraint nicely
-      if (String(error.message).toLowerCase().includes("unique")) {
-        setStatus("error");
-        setMessage("That slug is already taken. Try another.");
-        return;
-      }
-      setStatus("error");
-      setMessage(error.message);
-      return;
-    }
-
-    setStatus("saved");
-    setMessage("League created!");
-    setName("");
-    setSlug("");
-    setDescription("");
-    onCreated?.();
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 border rounded p-4">
-      <h2 className="text-lg font-semibold">Create a league</h2>
-
-      <label className="block">
-        <span className="block mb-1">Name</span>
+    <form onSubmit={onSubmit} className="space-y-3">
+      <input
+        className="w-full border rounded-xl p-3"
+        placeholder="League name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+      />
+      <div className="flex gap-2">
         <input
-          value={name}
-          onChange={(e) => handleNameChange(e.target.value)}
-          className="w-full border rounded px-3 py-2"
-          placeholder="Downtown 9-Ball League"
+          className="flex-1 border rounded-xl p-3"
+          placeholder="City (optional)"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
         />
-      </label>
-
-      <label className="block">
-        <span className="block mb-1">Slug (URL)</span>
         <input
-          value={slug}
-          onChange={(e) => setSlug(slugify(e.target.value))}
-          className="w-full border rounded px-3 py-2"
-          placeholder="downtown-9ball"
+          className="w-28 border rounded-xl p-3"
+          placeholder="State"
+          value={state}
+          onChange={(e) => setState(e.target.value)}
+          maxLength={2}
         />
-        <p className="text-sm text-gray-500 mt-1">
-          Lowercase letters, numbers, and dashes. Example URL: <code>/leagues/downtown-9ball</code>
-        </p>
-      </label>
-
-      <label className="block">
-        <span className="block mb-1">Description (optional)</span>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full border rounded px-3 py-2"
-          rows={3}
-          placeholder="Weekly league every Thursday night…"
-        />
-      </label>
-
-      <button
-        type="submit"
-        disabled={status === "saving"}
-        className="px-4 py-2 rounded bg-black text-white"
-      >
-        {status === "saving" ? "Creating..." : "Create League"}
+      </div>
+      <button className="px-4 py-2 rounded-2xl border" disabled={loading}>
+        {loading ? "Creating…" : "Create league"}
       </button>
-
-      {message && (
-        <p className={status === "error" ? "text-red-600" : "text-green-700"}>{message}</p>
-      )}
+      {msg && <p className="text-sm">{msg}</p>}
     </form>
   );
 }
