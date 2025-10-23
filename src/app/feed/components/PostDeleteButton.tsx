@@ -1,38 +1,53 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-export default function PostDeleteButton({ postId }: { postId: string }) {
-  const [loading, setLoading] = useState(false);
+type Props = {
+  postId: string;
+  className?: string;
+};
+
+export default function PostDeleteButton({ postId, className }: Props) {
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function handleDelete() {
+  async function onDelete() {
+    if (busy) return;
     if (!confirm("Delete this post?")) return;
-    setLoading(true);
+
+    setBusy(true);
     setErr(null);
     try {
-      const { error } = await supabaseBrowser.from("posts").delete().eq("id", postId);
+      const supabase = supabaseBrowser(); // <-- instantiate client
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
       if (error) throw error;
-      // Simple refresh of the feed
+      // simple refresh
       window.location.reload();
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to delete");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErr(msg);
+      // eslint-disable-next-line no-alert
+      alert(`Could not delete: ${msg}`);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   return (
-    <div className="ml-auto">
+    <div className={className}>
       <button
-        onClick={handleDelete}
-        disabled={loading}
-        className="text-xs text-red-600 underline"
+        onClick={onDelete}
+        disabled={busy}
+        className="text-xs rounded-xl border px-2 py-1"
+        aria-label="Delete post"
+        title="Delete post"
       >
-        {loading ? "Deleting..." : "Delete"}
+        {busy ? "Deleting…" : "Delete"}
       </button>
-      {err && <p className="text-xs text-red-500 mt-1">{err}</p>}
+      {err ? (
+        <div className="mt-1 text-xs text-red-600">{err}</div>
+      ) : null}
     </div>
   );
 }
