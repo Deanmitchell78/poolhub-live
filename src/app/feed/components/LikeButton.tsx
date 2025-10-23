@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type Props = {
@@ -10,56 +10,60 @@ type Props = {
 };
 
 export default function LikeButton({ postId, initialLiked, initialCount }: Props) {
-  const [liked, setLiked] = useState(initialLiked);
-  const [count, setCount] = useState(initialCount);
-  const [busy, setBusy] = useState(false);
+  const [liked, setLiked] = useState<boolean>(initialLiked);
+  const [count, setCount] = useState<number>(initialCount);
+  const [busy, setBusy] = useState<boolean>(false);
 
-  async function toggle() {
+  const toggle = useCallback(async () => {
     if (busy) return;
     setBusy(true);
+
     try {
-      const { data: { user } } = await supabaseBrowser.auth.getUser();
+      const supabase = supabaseBrowser(); // <-- instantiate client
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         alert("Please sign in to like posts.");
         return;
       }
 
+      // optimistic update
+      setLiked((v) => !v);
+      setCount((c) => (liked ? Math.max(0, c - 1) : c + 1));
+
       if (!liked) {
-        // like
-        const { error } = await supabaseBrowser.from("likes").insert({
-          post_id: postId,
-          user_id: user.id,
-        });
+        // like -> insert
+        const { error } = await supabase.from("likes").insert([{ post_id: postId, user_id: user.id }]);
         if (error) throw error;
-        setLiked(true);
-        setCount(c => c + 1);
       } else {
-        // unlike
-        const { error } = await supabaseBrowser
+        // unlike -> delete
+        const { error } = await supabase
           .from("likes")
           .delete()
           .eq("post_id", postId)
           .eq("user_id", user.id);
         if (error) throw error;
-        setLiked(false);
-        setCount(c => Math.max(0, c - 1));
       }
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message ?? "Could not update like");
+    } catch (e) {
+      // rollback optimistic update on failure
+      setLiked(initialLiked);
+      setCount(initialCount);
+      console.error("like toggle failed:", e);
+      alert("Could not update like. Please try again.");
     } finally {
       setBusy(false);
     }
-  }
+  }, [busy, liked, postId, initialLiked, initialCount]);
 
   return (
     <button
       onClick={toggle}
       disabled={busy}
-      className={`text-xs rounded-full px-3 py-1 border ${liked ? "bg-black text-white" : ""}`}
+      className={`text-sm rounded-xl border px-2 py-1 ${liked ? "bg-pink-50 border-pink-200" : "bg-white"}`}
       aria-pressed={liked}
+      aria-label={liked ? "Unlike" : "Like"}
+      title={liked ? "Unlike" : "Like"}
     >
-      {liked ? "♥ Liked" : "♡ Like"} · {count}
+      {liked ? "♥" : "♡"} {count}
     </button>
   );
 }
