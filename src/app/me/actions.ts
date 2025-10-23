@@ -2,124 +2,111 @@
 
 import { supabaseServer } from "@/lib/supabase-server";
 
-function assertImage(file: File, maxMb = 5) {
-  if (!file) throw new Error("No file selected");
-  if (file.size > maxMb * 1024 * 1024) throw new Error(`Max file size is ${maxMb}MB`);
-  const allowed = ["image/jpeg", "image/png", "image/webp"];
-  if (!allowed.includes(file.type)) throw new Error("Only JPG, PNG, WEBP allowed");
+type UploadResult =
+  | { ok: true; url: string }
+  | { ok: false; error: string };
+
+function sanitizeName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
-/** BANNERS */
-export async function uploadBannerAction(formData: FormData) {
-  const supabase = supabaseServer();
-  const { data: ud } = await supabase.auth.getUser();
-  const user = ud?.user;
-  if (!user) throw new Error("Not authenticated");
+const MAX_MB = 25;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
 
-  const file = formData.get("banner") as File | null;
-  assertImage(file!, 5);
+const AVATAR_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/gif",
+]);
 
-  const ext = (file!.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${user.id}/banner.${ext}`;
+const BANNER_TYPES = AVATAR_TYPES; // same set; adjust if you want to allow video banners later
 
-  // Convert to raw bytes for server action upload
-  const bytes = new Uint8Array(await file!.arrayBuffer());
-
-  const { error: upErr } = await supabase.storage
-    .from("banners")
-    .upload(path, bytes, { upsert: true, contentType: file!.type });
-  if (upErr) throw new Error(upErr.message);
-
-  const { data } = supabase.storage.from("banners").getPublicUrl(path);
-  const publicUrl = data.publicUrl;
-
-  const { error: profErr } = await supabase
-    .from("profiles")
-    .update({ banner_url: publicUrl })
-    .eq("id", user.id);
-  if (profErr) throw new Error(profErr.message);
-
-  return { ok: true, url: publicUrl };
-}
-
-/** AVATARS */
-export async function uploadAvatarAction(formData: FormData) {
-  const supabase = supabaseServer();
-  const { data: ud } = await supabase.auth.getUser();
-  const user = ud?.user;
-  if (!user) throw new Error("Not authenticated");
-
-  const file = formData.get("avatar") as File | null;
-  assertImage(file!, 5);
-
-  const ext = (file!.name.split(".").pop() || "jpg").toLowerCase();
-  const path = `${user.id}/avatar.${ext}`;
-
-  const bytes = new Uint8Array(await file!.arrayBuffer());
-
-  const { error: upErr } = await supabase.storage
-    .from("avatars")
-    .upload(path, bytes, { upsert: true, contentType: file!.type });
-  if (upErr) throw new Error(upErr.message);
-
-  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-  const publicUrl = data.publicUrl;
-
-  const { error: profErr } = await supabase
-    .from("profiles")
-    .update({ avatar_url: publicUrl })
-    .eq("id", user.id);
-  if (profErr) throw new Error(profErr.message);
-
-  return { ok: true, url: publicUrl };
-}
-
-/** POSTS: text + image/video */
-export async function createPostAction(formData: FormData) {
-  const supabase = supabaseServer();
-  const { data: ud } = await supabase.auth.getUser();
-  const user = ud?.user;
-  if (!user) throw new Error("Not authenticated");
-
-  const content = (formData.get("content") as string | null) ?? "";
-  let mediaUrl: string | null = null;
-
-  const file = formData.get("media") as File | null;
-
+export async function uploadAvatarAction(formData: FormData): Promise<UploadResult> {
   try {
-    if (file && file.size > 0) {
-      const allowed = ["image/jpeg", "image/png", "image/webp", "video/mp4", "video/webm"];
-      if (!allowed.includes(file.type)) {
-        throw new Error(`Unsupported type: ${file.type}`);
-      }
-      if (file.size > 50 * 1024 * 1024) {
-        throw new Error(`File too large (${(file.size/1024/1024).toFixed(1)}MB). Max 50MB.`);
-      }
+    const supabase = await supabaseServer(); // ✅ MUST await
+    const { data: ud, error: userErr } = await supabase.auth.getUser();
+    if (userErr) return { ok: false, error: userErr.message };
+    const user = ud?.user;
+    if (!user) return { ok: false, error: "Not authenticated" };
 
-      const ext = (file.name.split(".").pop() || "bin").toLowerCase();
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-      const bytes = new Uint8Array(await file.arrayBuffer());
-
-      const { error: upErr } = await supabase.storage
-        .from("post-media")
-        .upload(path, bytes, { upsert: false, contentType: file.type });
-
-      if (upErr) throw new Error(`Storage upload failed: ${upErr.message}`);
-
-      const { data: urlData } = supabase.storage.from("post-media").getPublicUrl(path);
-      mediaUrl = urlData.publicUrl;
-      if (!mediaUrl) throw new Error("Public URL not returned for uploaded media");
+    const file = formData.get("file");
+    if (!(file instanceof File)) {
+      return { ok: false, error: "No file provided" };
+    }
+    if (file.size > MAX_BYTES) {
+      return { ok: false, error: `File too large (max ${MAX_MB}MB)` };
+    }
+    if (!AVATAR_TYPES.has(file.type)) {
+      return { ok: false, error: "Unsupported file type" };
     }
 
-    const { error: insErr } = await supabase.from("posts").insert({
-      author_id: user.id,
-      content,
-      image_url: mediaUrl, // stores image OR video URL
+    const key = `${user.id}/${Date.now()}-${sanitizeName(file.name)}`;
+    const up = await supabase.storage.from("avatars").upload(key, file, {
+      upsert: false,
+      cacheControl: "3600",
+      contentType: file.type,
     });
-    if (insErr) throw new Error(`Post insert failed: ${insErr.message}`);
+    if (up.error) return { ok: false, error: up.error.message };
 
-    return { ok: true };
-  } catch (e: any) {
-    throw new Error(e?.message ?? "Unexpected error during post");
+    const pub = supabase.storage.from("avatars").getPublicUrl(key);
+    const publicUrl = pub.data.publicUrl;
+    if (!publicUrl) return { ok: false, error: "Could not derive public URL" };
+
+    const { error: updErr } = await supabase
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", user.id);
+    if (updErr) return { ok: false, error: updErr.message };
+
+    return { ok: true, url: publicUrl };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+}
+
+export async function uploadBannerAction(formData: FormData): Promise<UploadResult> {
+  try {
+    const supabase = await supabaseServer(); // ✅ MUST await
+    const { data: ud, error: userErr } = await supabase.auth.getUser();
+    if (userErr) return { ok: false, error: userErr.message };
+    const user = ud?.user;
+    if (!user) return { ok: false, error: "Not authenticated" };
+
+    const file = formData.get("file");
+    if (!(file instanceof File)) {
+      return { ok: false, error: "No file provided" };
+    }
+    if (file.size > MAX_BYTES) {
+      return { ok: false, error: `File too large (max ${MAX_MB}MB)` };
+    }
+    if (!BANNER_TYPES.has(file.type)) {
+      return { ok: false, error: "Unsupported file type" };
+    }
+
+    const key = `${user.id}/${Date.now()}-${sanitizeName(file.name)}`;
+    const up = await supabase.storage.from("banners").upload(key, file, {
+      upsert: false,
+      cacheControl: "3600",
+      contentType: file.type,
+    });
+    if (up.error) return { ok: false, error: up.error.message };
+
+    const pub = supabase.storage.from("banners").getPublicUrl(key);
+    const publicUrl = pub.data.publicUrl;
+    if (!publicUrl) return { ok: false, error: "Could not derive public URL" };
+
+    const { error: updErr } = await supabase
+      .from("profiles")
+      .update({ banner_url: publicUrl })
+      .eq("id", user.id);
+    if (updErr) return { ok: false, error: updErr.message };
+
+    return { ok: true, url: publicUrl };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
   }
 }
