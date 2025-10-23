@@ -5,7 +5,8 @@ import { supabaseServer } from "@/lib/supabase-server";
 import AvatarUploader from "../components/AvatarUploader";
 
 export default async function AvatarPage() {
-  const supabase = supabaseServer();
+  const supabase = await supabaseServer();
+
   const { data } = await supabase.auth.getUser();
   const user = data?.user;
 
